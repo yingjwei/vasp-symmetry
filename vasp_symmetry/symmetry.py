@@ -167,14 +167,19 @@ class SymmetryAnalyzer:
 
         lat, pos, numbers = self._cell
 
-        # 获取空间群信息
+        # 获取空间群信息（兼容 spglib 2.6 dict 和 2.7+ attribute 接口）
         dataset = spglib.get_symmetry_dataset(self._cell, symprec=self.symprec)
         if dataset is None:
             raise RuntimeError("spglib 对称性分析失败")
 
-        spacegroup_number = dataset.number
-        spacegroup_symbol = dataset.international
-        pointgroup_symbol = dataset.pointgroup
+        if isinstance(dataset, dict):
+            spacegroup_number = dataset["number"]
+            spacegroup_symbol = dataset["international"]
+            pointgroup_symbol = dataset["pointgroup"]
+        else:
+            spacegroup_number = dataset.number
+            spacegroup_symbol = dataset.international
+            pointgroup_symbol = dataset.pointgroup
 
         # 获取所有对称操作
         sym = spglib.get_symmetry(self._cell, symprec=self.symprec)
