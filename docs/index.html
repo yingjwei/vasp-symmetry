@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>vasp-symmetry — VASP 结构对称性分析工具</title>
+<style>
+  :root {
+    --bg: #f8f9fa;
+    --fg: #1a1a2e;
+    --accent: #4361ee;
+    --accent2: #3a0ca3;
+    --code-bg: #1e1e2e;
+    --code-fg: #cdd6f4;
+    --border: #dee2e6;
+    --card: #ffffff;
+    --success: #2ecc71;
+    --warn: #f39c12;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans SC", sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+    line-height: 1.7;
+  }
+
+  /* Header */
+  header {
+    background: linear-gradient(135deg, var(--accent2), var(--accent));
+    color: #fff;
+    padding: 3rem 1rem;
+    text-align: center;
+  }
+  header h1 { font-size: 2.5rem; margin-bottom: .5rem; letter-spacing: 1px; }
+  header p { font-size: 1.1rem; opacity: .9; max-width: 600px; margin: 0 auto; }
+  header .badge {
+    display: inline-block;
+    background: rgba(255,255,255,.2);
+    padding: .25rem 1rem;
+    border-radius: 20px;
+    font-size: .85rem;
+    margin-top: 1rem;
+  }
+
+  /* Navigation */
+  nav {
+    background: #fff;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  nav ul {
+    list-style: none;
+    display: flex;
+    justify-content: center;
+    gap: 2rem;
+    padding: .75rem 1rem;
+    flex-wrap: wrap;
+  }
+  nav a {
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 500;
+    font-size: .95rem;
+  }
+  nav a:hover { text-decoration: underline; }
+
+  /* Main */
+  main { max-width: 960px; margin: 0 auto; padding: 2rem 1rem; }
+  section { margin-bottom: 3rem; }
+
+  h2 {
+    font-size: 1.6rem;
+    color: var(--accent2);
+    border-bottom: 2px solid var(--accent);
+    padding-bottom: .4rem;
+    margin-bottom: 1.2rem;
+  }
+  h3 {
+    font-size: 1.2rem;
+    color: var(--fg);
+    margin: 1.5rem 0 .8rem;
+  }
+
+  p, li { color: #444; }
+  ul, ol { padding-left: 1.5rem; margin: .5rem 0; }
+  li { margin-bottom: .3rem; }
+
+  /* Cards */
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+    margin: 1.5rem 0;
+  }
+  .card {
+    background: var(--card);
+    border-radius: 10px;
+    padding: 1.3rem;
+    border: 1px solid var(--border);
+    box-shadow: 0 2px 8px rgba(0,0,0,.04);
+  }
+  .card h4 { color: var(--accent); margin-bottom: .5rem; font-size: 1rem; }
+  .card p { font-size: .9rem; }
+
+  /* Code blocks */
+  pre {
+    background: var(--code-bg);
+    color: var(--code-fg);
+    padding: 1rem 1.2rem;
+    border-radius: 8px;
+    overflow-x: auto;
+    font-size: .88rem;
+    line-height: 1.5;
+    margin: 1rem 0;
+    position: relative;
+  }
+  code { font-family: "JetBrains Mono", "Fira Code", monospace; }
+  p code, li code {
+    background: #e8e8ee;
+    padding: .1rem .4rem;
+    border-radius: 4px;
+    font-size: .85rem;
+    color: var(--accent2);
+  }
+
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: .6rem .8rem;
+    text-align: left;
+    font-size: .9rem;
+  }
+  th { background: #f1f3f9; font-weight: 600; }
+  tr:hover { background: #f8f9ff; }
+
+  /* Output box */
+  .output-box {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--accent);
+    padding: 1rem 1.2rem;
+    border-radius: 6px;
+    margin: 1rem 0;
+    font-family: monospace;
+    font-size: .85rem;
+    white-space: pre-wrap;
+    line-height: 1.4;
+  }
+
+  /* Example result */
+  .result {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 8px;
+    padding: 1rem;
+    margin: 1rem 0;
+    font-size: .9rem;
+  }
+  .result strong { color: #15803d; }
+
+  /* Footer */
+  footer {
+    text-align: center;
+    padding: 2rem;
+    color: #888;
+    font-size: .85rem;
+    border-top: 1px solid var(--border);
+    margin-top: 2rem;
+  }
+  footer a { color: var(--accent); }
+
+  /* Responsive */
+  @media (max-width: 640px) {
+    header h1 { font-size: 1.8rem; }
+    nav ul { gap: 1rem; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>vasp-symmetry</h1>
+  <p>VASP 结构对称性分析工具包 — 自动识别空间群、对称操作，支持 k 点小群分析</p>
+  <span class="badge">Python · spglib · 晶体学 · VASP</span>
+</header>
+
+<nav>
+  <ul>
+    <li><a href="#intro">简介</a></li>
+    <li><a href="#install">安装</a></li>
+    <li><a href="#usage">使用指南</a></li>
+    <li><a href="#features">功能详解</a></li>
+    <li><a href="#examples">实例</a></li>
+    <li><a href="#output">输出解读</a></li>
+    <li><a href="#api">程序调用</a></li>
+  </ul>
+</nav>
+
+<main>
+
+<!-- ==================== 简介 ==================== -->
+<section id="intro">
+<h2>简介</h2>
+<p>
+  <strong>vasp-symmetry</strong> 是一个专为 VASP 用户设计的 Python 工具包，用于分析 POSCAR 文件中的晶体对称性。
+  它基于 <strong>spglib</strong> 引擎，能够检测并分类所有对称操作，包括旋转轴、镜面、反演中心、滑移面和螺旋轴，
+  并以清晰的矩阵形式输出。此外，还支持对指定 k 点进行小群（Little Group）分析，是能带结构研究和
+  对称性分析的重要辅助工具。
+</p>
+</section>
+
+<!-- ==================== 安装 ==================== -->
+<section id="install">
+<h2>安装</h2>
+
+<h3>依赖</h3>
+<p>需要 Python 3.10+ 和以下包：</p>
+<pre><code>pip install numpy scipy spglib pymatgen</code></pre>
+
+<h3>下载</h3>
+<pre><code>git clone https://github.com/yingjwei/vasp-symmetry.git
+cd vasp-symmetry</code></pre>
+
+<h3>运行</h3>
+<pre><code># Windows
+python run.py POSCAR
+
+# Linux / macOS
+python3 run.py POSCAR</code></pre>
+</section>
+
+<!-- ==================== 使用指南 ==================== -->
+<section id="usage">
+<h2>使用指南</h2>
+
+<div class="card-grid">
+  <div class="card">
+    <h4>基本对称性分析</h4>
+    <p>读取 POSCAR 并输出空间群、点群、所有对称操作摘要。</p>
+    <pre><code>python run.py POSCAR</code></pre>
+  </div>
+  <div class="card">
+    <h4>详细模式（含矩阵）</h4>
+    <p>输出每个对称操作的 3×3 旋转矩阵和平移向量。</p>
+    <pre><code>python run.py POSCAR --detail</code></pre>
+  </div>
+  <div class="card">
+    <h4>高对称 k 点</h4>
+    <p>自动列出该晶系的常见高对称 k 点及其小群。</p>
+    <pre><code>python run.py POSCAR --high-sym</code></pre>
+  </div>
+  <div class="card">
+    <h4>k 点小群分析</h4>
+    <p>指定 k 点的分数坐标，分析其小群对称性。</p>
+    <pre><code>python run.py POSCAR -k 0 0 0 --label G</code></pre>
+  </div>
+  <div class="card">
+    <h4>k 路径分析</h4>
+    <p>沿高对称路径追踪每个 k 点的点群变化。</p>
+    <pre><code>python run.py POSCAR --path "G,0,0,0 X,0.5,0,0.5"</code></pre>
+  </div>
+  <div class="card">
+    <h4>调整精度</h4>
+    <p>设置对称性检测的精度（默认 1e-5）。</p>
+    <pre><code>python run.py POSCAR --symprec 1e-3</code></pre>
+  </div>
+</div>
+</section>
+
+<!-- ==================== 功能详解 ==================== -->
+<section id="features">
+<h2>功能详解</h2>
+
+<h3>对称操作分类</h3>
+<p>工具将 spglib 检测到的对称操作自动分类为：</p>
+<table>
+  <tr><th>类型</th><th>符号</th><th>说明</th><th>示例</th></tr>
+  <tr><td>恒等</td><td>E</td><td>不做任何变换</td><td>所有结构</td></tr>
+  <tr><td>旋转轴</td><td>C<sub>n</sub></td><td>绕某轴旋转 360°/n</td><td>C<sub>2</sub>, C<sub>3</sub>, C<sub>4</sub>, C<sub>6</sub></td></tr>
+  <tr><td>镜面</td><td>σ</td><td>关于某平面的反射</td><td>法向 [100]</td></tr>
+  <tr><td>反演</td><td>i</td><td>通过原点的中心反演</td><td>—</td></tr>
+  <tr><td>滑移面</td><td>a/b/c/n/d</td><td>镜面 + 面内平移</td><td>d-滑移 (金刚石)</td></tr>
+  <tr><td>螺旋轴</td><td>n<sub>m</sub></td><td>旋转 + 轴向平移</td><td>4<sub>1</sub>, 2<sub>1</sub></td></tr>
+  <tr><td>非真旋转</td><td>S<sub>n</sub></td><td>旋转 + 垂直面反射</td><td>S<sub>4</sub>, S<sub>6</sub></td></tr>
+</table>
+
+<h3>小群（Little Group）</h3>
+<p>
+  给定倒空间 k 点，小群是空间群中使该 k 点保持不变的对称操作子集
+  （模倒格矢）。小群决定了该 k 点的能带简并度和选择定则。
+  工具自动给出小群的点群符号和操作列表。
+</p>
+
+<h3>输出格式</h3>
+<p>摘要模式输出：空间群号、HM 符号、点群、各类型对称操作计数。</p>
+<p>详细模式额外输出每个操作的 3×3 旋转矩阵和分数坐标平移向量。</p>
+</section>
+
+<!-- ==================== 实例 ==================== -->
+<section id="examples">
+<h2>实例分析：金钢石硅 (Diamond Si)</h2>
+
+<p>POSCAR 文件：</p>
+<pre><code>Diamond Si
+    5.4307
+  0.0  0.5  0.5
+  0.5  0.0  0.5
+  0.5  0.5  0.0
+  Si
+  2
+Direct
+  0.000000  0.000000  0.000000
+  0.250000  0.250000  0.250000</code></pre>
+
+<p>运行分析：</p>
+<pre><code>python run.py examples/POSCAR_Si</code></pre>
+
+<div class="output-box">============================================================
+  空间群 (国际号):   #227
+  空间群 (HM 符号):   Fd-3m
+  点群:                m-3m
+  对称操作总数:        48
+============================================================
+  恒等操作:  E
+  反演中心:  i
+  C2 旋转轴: 3 个
+  C3 旋转轴: 8 个
+  镜面: 6 个
+  滑移面: 3 个
+  螺旋轴: 12 个</div>
+
+<h3>k 点小群分析</h3>
+<pre><code>python run.py examples/POSCAR_Si --high-sym</code></pre>
+
+<div class="output-box">  高对称 k 点:
+  Γ     (0.0000, 0.0000, 0.0000)  → 小群: Oh     对称操作: 48
+  X     (0.5000, 0.0000, 0.5000)  → 小群: D2h    对称操作: 8
+  R     (0.5000, 0.5000, 0.5000)  → 小群: Oh     对称操作: 48
+  M     (0.5000, 0.5000, 0.0000)  → 小群: D2h    对称操作: 8</div>
+
+<pre><code>python run.py examples/POSCAR_Si -k 0 0 0 --label G -k 0.5 0 0.5 --label X</code></pre>
+
+<div class="output-box">  k 点:   Γ (0.0000, 0.0000, 0.0000)
+  小群点群: Oh
+  对称操作数: 48
+
+  k 点:   X (0.5000, 0.0000, 0.5000)
+  小群点群: D2h
+  对称操作数: 8</div>
+
+<h3>k 路径分析</h3>
+<pre><code>python run.py examples/POSCAR_Si --path "G,0,0,0 X,0.5,0,0.5 L,0.5,0.5,0.5 G,0,0,0"</code></pre>
+
+<div class="output-box">  Γ                →  Oh      (48 ops)
+  Γ→X#1            →  Cs      (2 ops)
+  X                →  D2h     (8 ops)
+  X→L#1            →  C2h     (4 ops)
+  L                →  Oh      (48 ops)
+  L→Γ#1            →  C3v     (6 ops)
+  L→Γ#5            →  Td      (24 ops)
+  L→Γ#6            →  C3v     (6 ops)
+  Γ                →  Oh      (48 ops)</pre>
+
+</section>
+
+<!-- ==================== 输出解读 ==================== -->
+<section id="output">
+<h2>输出解读</h2>
+
+<table>
+  <tr><th>输出项</th><th>含义</th></tr>
+  <tr><td>空间群 (国际号)</td><td>Hermann-Mauguin 空间群编号（1–230）</td></tr>
+  <tr><td>空间群 (HM 符号)</td><td>如 Fd-3m, Fm-3m, P4/mmm 等</td></tr>
+  <tr><td>点群</td><td>如 m-3m (Oh), 4/mmm (D<sub>4h</sub>) 等</td></tr>
+  <tr><td>旋转矩阵 R</td><td>3×3 整数矩阵，作用在分数坐标上</td></tr>
+  <tr><td>平移向量 τ</td><td>分数坐标下的平移分量</td></tr>
+  <tr><td>C2 [1 1 -1]</td><td>绕 [111] 方向的 180° 旋转轴</td></tr>
+  <tr><td>σ 法向: [100]</td><td>法向量为 [100] 的镜面</td></tr>
+  <tr><td>d-滑移</td><td>对角滑移面（金刚石型滑移），滑移分量 (a±b)/4</td></tr>
+  <tr><td>4₁ 螺旋</td><td>四次螺旋轴，螺距为 1/4 晶格常数</td></tr>
+</table>
+
+<div class="result">
+  <strong>提示:</strong> 旋转矩阵和平移向量完整定义了对称操作 (R|τ)：
+  空间中的点 <strong>x</strong> 经过操作后变为 <strong>x' = R·x + τ</strong>。
+</div>
+</section>
+
+<!-- ==================== 程序调用 ==================== -->
+<section id="api">
+<h2>程序调用（Python API）</h2>
+
+<p>在 Python 脚本或 Jupyter Notebook 中调用：</p>
+
+<pre><code>from vasp_symmetry import read_poscar, SymmetryAnalyzer, LittleGroupAnalyzer
+
+# 1. 读取 POSCAR
+struct = read_poscar("POSCAR")
+
+# 2. 对称性分析
+analyzer = SymmetryAnalyzer(struct)
+result = analyzer.analyze()
+
+print(f"空间群: #{result.spacegroup_number} {result.spacegroup_symbol}")
+print(f"点群: {result.pointgroup_symbol}")
+print(f"对称操作数: {len(result.operations)}")
+
+# 遍历对称操作
+for op in result.operations:
+    print(f"{op.symbol}: 类型={op.op_type}, 阶数={op.order}")
+    print(f"  旋转矩阵:\n{op.matrix_str()}")
+
+# 3. 小群分析
+lg = LittleGroupAnalyzer(analyzer)
+
+# Γ 点
+r = lg.analyze_kpoint([0, 0, 0], label="Γ")
+print(f"{r.kpoint_label}: {r.pointgroup}, {r.num_operations} ops")
+
+# X 点
+r = lg.analyze_kpoint([0.5, 0, 0.5], label="X")
+print(f"{r.kpoint_label}: {r.pointgroup}, {r.num_operations} ops")
+
+# 自定义 k 点
+r = lg.analyze_kpoint([0.25, 0.25, 0.25], label="custom")
+print(f"{r.kpoint_label}: {r.pointgroup}, {r.num_operations} ops")</code></pre>
+</section>
+
+</main>
+
+<footer>
+  <p>vasp-symmetry &mdash; 基于 <a href="https://spglib.github.io/spglib/">spglib</a> 和 <a href="https://pymatgen.org/">pymatgen</a> 构建</p>
+  <p><a href="https://github.com/yingjwei/vasp-symmetry">GitHub 仓库</a></p>
+</footer>
+
+</body>
+</html>
