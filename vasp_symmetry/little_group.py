@@ -377,6 +377,10 @@ class LittleGroupAnalyzer:
         if n_total == 4:
             if n_proper == 2:  # 含非真旋转
                 if n_C2 == 1:
+                    if n_mirrors == 2:
+                        return "C2v"
+                    if n_mirrors == 0:
+                        return "S4"
                     return "C2h"
                 return "Cs"  # fallback
             # n_proper == 4
