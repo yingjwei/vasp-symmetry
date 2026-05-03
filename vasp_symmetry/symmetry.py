@@ -281,32 +281,31 @@ class SymmetryAnalyzer:
                 )
 
         else:  # det == -1: 包含反射/非真旋转
-            # 先检查镜面（特征值：1, 1, -1）
-            eigvals = np.linalg.eigvals(R)
-            eigvals_rounded = np.round(np.abs(eigvals))  # 非真旋转的特征值模为1
-
-            if is_pure and self._is_mirror(R):
+            # 先检查镜面/滑移面（特征值：1, 1, -1）
+            if self._is_mirror(R):
                 normal = self._mirror_normal(R)
                 normal_str = self._axis_to_str(normal)
-                return SymmetryOp(
-                    rotation=R, translation=t,
-                    op_type=OpType.MIRROR, symbol="σ",
-                    order=2, axis_info=f"法向: {normal_str}"
-                )
+                # 计算面内平移分量（平行于镜面）
+                n_unit = normal / (np.linalg.norm(normal) + 1e-15)
+                t_parallel = t - np.dot(t, n_unit) * n_unit  # 面内分量
+                t_parallel_norm = np.linalg.norm(t_parallel)
 
-            if not is_pure and self._is_mirror(R):
-                # 滑移面：镜面 + 面内平移
-                normal = self._mirror_normal(R)
-                normal_str = self._axis_to_str(normal)
-                # 计算面内平移分量
-                t_plane = t - np.dot(t, normal) * normal / np.dot(normal, normal)
-                glide_type = self._glide_type(t_plane, normal)
-                return SymmetryOp(
-                    rotation=R, translation=t,
-                    op_type=OpType.GLIDE, symbol=glide_type,
-                    order=2,
-                    axis_info=f"滑移面 法向: {normal_str}, 滑移方向: {t_plane}"
-                )
+                if t_parallel_norm < self._TOL:
+                    # 面内平移 ≈ 0 → 纯镜面（可能有原点偏移，但偏移垂直于镜面方向）
+                    return SymmetryOp(
+                        rotation=R, translation=t,
+                        op_type=OpType.MIRROR, symbol="σ",
+                        order=2, axis_info=f"法向: {normal_str}"
+                    )
+                else:
+                    # 有面内平移 → 滑移面
+                    glide_type = self._glide_type(t_parallel, normal)
+                    return SymmetryOp(
+                        rotation=R, translation=t,
+                        op_type=OpType.GLIDE, symbol=glide_type,
+                        order=2,
+                        axis_info=f"滑移面 法向: {normal_str}, 滑移方向: {t_parallel}"
+                    )
 
             # 非真旋转 (improper rotation)
             order = self._improper_order(R)
