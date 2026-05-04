@@ -11,6 +11,10 @@ import numpy as np
 from .poscar_reader import read_poscar
 from .symmetry import SymmetryAnalyzer
 from .little_group import LittleGroupAnalyzer
+from .symmetry_tensors import (
+    report_symmetry_actions, KpModel, PiezoelectricTensor,
+    SpinHallTensor, full_tensor_report,
+)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -26,6 +30,10 @@ def main(argv: list[str] | None = None) -> int:
   vasp-symmetry POSCAR --path Γ,0,0,0 X,0.5,0,0.5  # 分析 k 路径
   vasp-symmetry POSCAR --detail                   # 详细输出（含矩阵）
   vasp-symmetry POSCAR --symprec 1e-3             # 设置对称性精度
+  vasp-symmetry POSCAR --pauli-action             # 对称操作对(k,σ)的作用
+  vasp-symmetry POSCAR -k 0 0 0 --kp              # Γ 点 k·p 模型
+  vasp-symmetry POSCAR --tensor                   # 压电/自旋霍尔张量
+  vasp-symmetry POSCAR --kp-order 3               # 设定 k·p 最高阶数
         """,
     )
 
@@ -43,6 +51,14 @@ def main(argv: list[str] | None = None) -> int:
                         help="详细输出（含所有操作矩阵）")
     parser.add_argument("--symprec", type=float, default=1e-5,
                         help="对称性检测精度 (默认: 1e-5)")
+    parser.add_argument("--pauli-action", action="store_true",
+                        help="分析对称操作对 (k, σ) 的变换作用")
+    parser.add_argument("--kp", action="store_true",
+                        help="对 Γ 点（或指定 -k 点）进行 k·p 模型分析")
+    parser.add_argument("--kp-order", type=int, default=2,
+                        help="k·p 展开最高阶数 (默认: 2)")
+    parser.add_argument("--tensor", action="store_true",
+                        help="输出压电系数和自旋霍尔电导张量（基于点群约束）")
 
     args = parser.parse_args(argv)
 
@@ -143,6 +159,53 @@ def main(argv: list[str] | None = None) -> int:
                     current_pg = r.pointgroup
         except Exception as e:
             print(f"错误: 路径分析失败: {e}")
+
+    # ------------------------------------------------
+    # 6. 对称操作对 (k, σ) 的作用
+    # ------------------------------------------------
+    if args.pauli_action:
+        _print_header("对称操作对 (k, σ) 的作用")
+        if args.kpoint:
+            # 只分析指定 k 点小群的操作
+            lg = LittleGroupAnalyzer(analyzer)
+            labels = args.label or []
+            for i, k in enumerate(args.kpoint):
+                label = labels[i] if i < len(labels) else f"k{i}"
+                lg_result = lg.analyze_kpoint(k, label=label)
+                print(f"\nk 点: {label} ({', '.join(f'{x:.4f}' for x in k)})")
+                print(report_symmetry_actions(
+                    analyzer, little_group_ops=lg_result.operations))
+        else:
+            print(report_symmetry_actions(analyzer))
+        print()
+
+    # ------------------------------------------------
+    # 7. k·p 模型
+    # ------------------------------------------------
+    if args.kp:
+        _print_header("k·p 模型（对称性允许项）")
+        lg = LittleGroupAnalyzer(analyzer)
+        if args.kpoint:
+            labels = args.label or []
+            for i, k in enumerate(args.kpoint):
+                label = labels[i] if i < len(labels) else f"k{i}"
+                lg_result = lg.analyze_kpoint(k, label=label)
+                print(f"\nk 点: {label} ({', '.join(f'{x:.4f}' for x in k)})")
+                kp = KpModel(lg_result.operations, result.lattice)
+                print(kp.report(max_order=args.kp_order))
+        else:
+            # 默认分析 Γ 点
+            lg_result = lg.analyze_kpoint([0, 0, 0], label="Γ")
+            kp = KpModel(lg_result.operations, result.lattice)
+            print(kp.report(max_order=args.kp_order))
+        print()
+
+    # ------------------------------------------------
+    # 8. 张量性质（压电系数 + 自旋霍尔电导）
+    # ------------------------------------------------
+    if args.tensor:
+        print(full_tensor_report(analyzer, kp_max_order=args.kp_order))
+        print()
 
     return 0
 
