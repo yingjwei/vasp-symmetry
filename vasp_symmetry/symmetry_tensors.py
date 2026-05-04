@@ -859,7 +859,7 @@ def full_tensor_report(
 
     # 4. 自旋霍尔电导
     lines.append("─" * 65)
-    lines.append(f"  自旋霍尔电导张量 (J_i^s_j = σ^s_{ijk} E_k)")
+    lines.append("  自旋霍尔电导张量 (J_i^s_j = σ^s_{ijk} E_k)")
     lines.append("─" * 65)
     sh = SpinHallTensor(pg_sch)
     lines.append(sh.report())
