@@ -20,7 +20,7 @@ SIGMA_Y = np.array([[0, -1j], [1j, 0]], dtype=complex)
 SIGMA_Z = np.array([[1, 0], [0, -1]], dtype=complex)
 SIGMA = [SIGMA_X, SIGMA_Y, SIGMA_Z]
 SIGMA_I = np.eye(2, dtype=complex)
-SIGMA_LABELS = ["sigma_x", "sigma_y", "sigma_z"]
+SIGMA_LABELS = ["σ_x", "σ_y", "σ_z"]
 
 
 # ============================================================
@@ -62,9 +62,9 @@ class TransformationInfo:
         lines.append("  k 变换:")
         for i, label in enumerate(["x", "y", "z"]):
             lines.append(f"    k_{label} -> {self.k_transform[i]}")
-        lines.append("  sigma 变换:")
+        lines.append("  σ 变换:")
         for i, label in enumerate(["x", "y", "z"]):
-            lines.append(f"    sigma_{label} -> {self.sigma_transform[i]}")
+            lines.append(f"    σ_{label} -> {self.sigma_transform[i]}")
         return "\n".join(lines)
 
 
@@ -115,7 +115,7 @@ def analyze_operation_action(
             else:
                 v = int(val) if abs(val - int(val)) < 1e-10 else val
                 coeff = f"{v:+g}" if val < 0 else f"{v:g}"
-            terms.append(f"{coeff}sigma_{['x','y','z'][j]}")
+            terms.append(f"{coeff}σ_{['x','y','z'][j]}")
         expr = " + ".join(terms).replace("+ -", "- ")
         s_expr.append(expr)
 
@@ -145,7 +145,7 @@ def report_symmetry_actions(
     else:
         ops = result.operations
 
-    lines = ["-" * 65, "  对称操作对 (k, sigma) 的作用", "-" * 65]
+    lines = ["-" * 65, "  对称操作对 (k, σ) 的作用", "-" * 65]
 
     for i, op in enumerate(ops):
         info = analyze_operation_action(op, lattice)
@@ -156,9 +156,9 @@ def report_symmetry_actions(
         lines.append("  k 变换:")
         for j, label in enumerate(["x", "y", "z"]):
             lines.append(f"    k_{label}  ->  {info.k_transform[j]}")
-        lines.append("  sigma 变换:")
+        lines.append("  σ 变换:")
         for j, label in enumerate(["x", "y", "z"]):
-            lines.append(f"    sigma_{label}  ->  {info.sigma_transform[j]}")
+            lines.append(f"    σ_{label}  ->  {info.sigma_transform[j]}")
 
     return "\n".join(lines)
 
@@ -216,9 +216,9 @@ class KpModel:
 
     SPIN_BASIS = [
         (SIGMA_I, "I"),
-        (SIGMA_X, "sigma_x"),
-        (SIGMA_Y, "sigma_y"),
-        (SIGMA_Z, "sigma_z"),
+        (SIGMA_X, "σ_x"),
+        (SIGMA_Y, "σ_y"),
+        (SIGMA_Z, "σ_z"),
     ]
 
     def __init__(self, little_group_ops: list[SymmetryOp], lattice: np.ndarray | None = None):
@@ -346,6 +346,7 @@ class KpModel:
 # Voigt 指标: xx=0, yy=1, zz=2, yz=3, xz=4, xy=5
 VOIGT_PAIRS = [(0, 0), (1, 1), (2, 2), (1, 2), (0, 2), (0, 1)]
 VOIGT_LABELS = ["xx", "yy", "zz", "yz", "xz", "xy"]
+IDX_TO_XYZ = ["x", "y", "z"]
 
 
 def _voigt_idx(j: int, k: int) -> int:
@@ -365,77 +366,88 @@ def _constrain_rank3_tensor(
     ops_rcart: list[np.ndarray],
     is_axial: bool = False,
     symmetrize_jk: bool = False,
+    symmetrize_ij: bool = False,
     tol: float = 1e-8,
 ) -> list[tuple[int, int, int]]:
     """对三阶张量施加对称性约束，返回非零 (i,j,k) 列表
 
+    使用群平均投影方法（SVD 求 (P−I) 零空间）正确找出所有对称允许的分量。
+    等价于计算 Neumann 原理下不变的张量子空间。
+
     参数:
         ops_rcart: Cartesian 旋转矩阵列表
         is_axial: True=轴矢张量（多一个 det(R) 因子）
-        symmetrize_jk: True=对 j,k 对称（如应变张量）
+        symmetrize_jk: True=对 j,k 对称（如压电张量的应变指标）
+        symmetrize_ij: True=对 i,j 对称（如自旋霍尔电导的自旋流对称 σ_{ijk}=σ_{jik}）
 
     返回:
         [(i,j,k), ...] 对称允许的非零分量列表（0-based 指标）
     """
-    all_indices = list(product(range(3), repeat=3))
-    if symmetrize_jk:
-        all_indices = [(i, j, k) for i, j, k in all_indices if j <= k]
+    if not ops_rcart:
+        all_idx = list(product(range(3), repeat=3))
+        if symmetrize_jk:
+            all_idx = [(i, j, k) for (i, j, k) in all_idx if j <= k]
+        if symmetrize_ij:
+            all_idx = [(i, j, k) for (i, j, k) in all_idx if i <= j]
+        return all_idx
 
-    allowed = []
-    for ijk in all_indices:
-        i, j, k = ijk
-        ok = True
-        for R_cart in ops_rcart:
-            det = np.linalg.det(R_cart)
+    dim = 27
+    # 构建群平均投影算子 P (27×27)
+    P = np.zeros((dim, dim))
+    for R_cart in ops_rcart:
+        det = np.linalg.det(R_cart)
+        for a in range(3):
+            for b in range(3):
+                for c in range(3):
+                    out = a * 9 + b * 3 + c
+                    for i in range(3):
+                        for j in range(3):
+                            for k in range(3):
+                                val = R_cart[a, i] * R_cart[b, j] * R_cart[c, k]
+                                if is_axial:
+                                    val *= det
+                                P[out, i * 9 + j * 3 + k] += val
+    P /= len(ops_rcart)
 
-            # 单位张量 T_ijk = 1，其他分量 = 0
-            t_orig = np.zeros((3, 3, 3))
-            t_orig[i, j, k] = 1.0
+    # 求 (P - I) 的零空间 → 所有满足 P[T] = T 的不变张量
+    A = P - np.eye(dim)
+    u, s, vh = np.linalg.svd(A)
+    null_mask = np.abs(s) < max(tol, 1e-10)
+    nullspace = vh[null_mask]
 
-            # 变换: T'_abc = (det)^a * R_ai * R_bj * R_ck * T_ijk
-            # a = 1 for axial, 0 for polar
-            t_trans = np.zeros((3, 3, 3))
-            for a in range(3):
-                for b in range(3):
-                    for c in range(3):
-                        val = 0.0
-                        for ii in range(3):
-                            for jj in range(3):
-                                for kk in range(3):
-                                    t_val = t_orig[ii, jj, kk]
-                                    if abs(t_val) < tol:
-                                        continue
-                                    factor = R_cart[a, ii] * R_cart[b, jj] * R_cart[c, kk]
-                                    if is_axial:
-                                        factor *= det
-                                    val += factor * t_val
-                        if abs(val) > tol:
-                            t_trans[a, b, c] = val
+    if nullspace.shape[0] == 0:
+        return []
 
-            # T_ijk 被保留当且仅当 T'[i,j,k] = 1 且所有非零分量与 T_orig 一致
-            if abs(t_trans[i, j, k] - 1.0) > tol:
-                ok = False
-                break
-
-            # 检查没有产生原单位张量中没有的非零分量
-            orig_entries = {(i, j, k)}
-            for a in range(3):
-                for b in range(3):
-                    for c in range(3):
-                        if symmetrize_jk and b > c:
+    allowed = set()
+    for vec in nullspace:
+        v3 = vec.reshape(3, 3, 3)
+        if symmetrize_jk:
+            v3_sym = v3.copy()
+            for j in range(3):
+                for k in range(j + 1, 3):
+                    avg = (v3_sym[:, j, k] + v3_sym[:, k, j]) / 2.0
+                    v3_sym[:, j, k] = avg
+                    v3_sym[:, k, j] = avg
+            v3 = v3_sym
+        if symmetrize_ij:
+            v3_sym = v3.copy()
+            for i in range(3):
+                for j in range(i + 1, 3):
+                    avg = (v3_sym[i, j, :] + v3_sym[j, i, :]) / 2.0
+                    v3_sym[i, j, :] = avg
+                    v3_sym[j, i, :] = avg
+            v3 = v3_sym
+        for i in range(3):
+            for j in range(3):
+                for k in range(3):
+                    if abs(v3[i, j, k]) > tol:
+                        if symmetrize_jk and j > k:
                             continue
-                        if abs(t_trans[a, b, c]) > tol and (a, b, c) not in orig_entries:
-                            ok = False
-                            break
-                if not ok:
-                    break
-            if not ok:
-                break
+                        if symmetrize_ij and i > j:
+                            continue
+                        allowed.add((i, j, k))
 
-        if ok:
-            allowed.append(ijk)
-
-    return allowed
+    return sorted(allowed)
 
 
 def _symmetry_ops_to_rcart(
@@ -495,7 +507,7 @@ class PiezoelectricTensor:
             "C2": [(1,1,3),(1,2,3),(1,3,1),(1,3,2),
                    (2,1,3),(2,2,3),(2,3,1),(2,3,2),
                    (3,1,1),(3,2,2),(3,3,3),(3,1,2)],
-            "C2v": [(3,1,1),(3,2,2),(3,3,3)],
+            "C2v": [(1,1,3),(2,2,3),(3,1,1),(3,2,2),(3,3,3)],
             "C3": [(1,1,1),(1,1,2),(1,2,2),(1,2,3),
                    (2,1,1),(2,1,2),(2,2,2),(2,2,3),
                    (3,1,3),(3,2,3),(3,3,1),(3,3,2),(3,3,3)],
@@ -561,12 +573,14 @@ class PiezoelectricTensor:
             lines.append(f"    i={i+1}  {row}")
 
         lines.append(f"\n  非零张量分量 ({len(comps)} 个):")
+        xyz = IDX_TO_XYZ
         for i, j, k in sorted(comps):
             alpha = _voigt_idx(j, k)
             if alpha >= 0:
-                lines.append(f"    e_{{{i+1},{alpha+1}}} (Voigt) = e_{{{i+1}{j+1}{k+1}}}")
+                vlabel = VOIGT_LABELS[alpha]
+                lines.append(f"    e_{{{xyz[i]},{vlabel}}} = e_{{{xyz[i]}{xyz[j]}{xyz[k]}}}")
             else:
-                lines.append(f"    e_{{{i+1}{j+1}{k+1}}}")
+                lines.append(f"    e_{{{xyz[i]}{xyz[j]}{xyz[k]}}}")
 
         return "\n".join(lines)
 
@@ -595,18 +609,18 @@ class SpinHallTensor:
         """返回 0-based (i,j,k) 列表"""
         if self._derived and self.ops:
             ops_rcart = _symmetry_ops_to_rcart(self.ops, self.lattice)
-            return _constrain_rank3_tensor(ops_rcart, is_axial=True, symmetrize_jk=False)
+            return _constrain_rank3_tensor(ops_rcart, is_axial=True,
+                                           symmetrize_jk=False, symmetrize_ij=False)
         return self._lookup_components()
 
     def _lookup_components(self) -> list[tuple[int, int, int]]:
         TABLE = {
-            "C1": [(0,1,2),(1,1,2),(2,1,2),
-                   (0,2,1),(1,2,1),(2,2,1)],
+            "C1": [(0,1,2),(0,2,1),(1,0,2),(1,2,0),(2,0,1),(2,1,0)],
             "Ci": [],
             "Cs": [(0,2,0),(0,2,1),(1,2,0),(1,2,1),
                    (2,0,0),(2,1,1),(2,0,1),(2,1,0)],
-            "C2v": [(1,2,0),(2,1,1)],
-            "C4v": [(1,2,0),(2,1,1)],
+            "C2v": [(0,1,2),(0,2,1),(1,0,2),(1,2,0),(2,0,1),(2,1,0)],
+            "C4v": [(0,1,2),(0,2,1),(1,0,2),(1,2,0),(2,0,1),(2,1,0)],
             "D2h": [],
             "Oh": [],
             "Td": [(0,1,2),(1,2,0),(2,0,1)],
@@ -626,8 +640,9 @@ class SpinHallTensor:
             return "\n".join(lines)
 
         lines.append(f"  非零分量 ({len(comps)} 个):")
+        xyz = IDX_TO_XYZ
         for i, j, k in sorted(comps):
-            lines.append(f"    sigma^s_{{{i+1}{j+1},{k+1}}}")
+            lines.append(f"    σ^{{{xyz[j]}}}_{{{xyz[i]},{xyz[k]}}}")
 
         return "\n".join(lines)
 
@@ -689,23 +704,11 @@ def full_tensor_report(
     lines.append(pe.report())
     lines.append("")
 
-    # 对照查表
-    lines.append("  [对照: 点群查表结果]")
-    pe_lookup = PiezoelectricTensor(pointgroup=pg_sch)
-    lines.append(pe_lookup.report())
-    lines.append("")
-
     # 4. 自旋霍尔电导（基于实际对称操作推导）
     lines.append("-" * 65)
-    lines.append("  自旋霍尔电导张量 (J_i^s_j = sigma^s_ijk * E_k)")
+    lines.append("  自旋霍尔电导张量 (J_i^{s_j} = σ^{j}_{ik} E_k)")
     lines.append("-" * 65)
     sh = SpinHallTensor(ops=ops, lattice=result.lattice)
     lines.append(sh.report())
-    lines.append("")
-
-    # 对照查表
-    lines.append("  [对照: 点群查表结果]")
-    sh_lookup = SpinHallTensor(pointgroup=pg_sch)
-    lines.append(sh_lookup.report())
 
     return "\n".join(lines)
