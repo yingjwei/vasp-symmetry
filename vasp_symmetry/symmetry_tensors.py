@@ -476,71 +476,17 @@ class PiezoelectricTensor:
     P_i = e_ijk * epsilon_jk  (epsilon 为应变张量)
     Voigt 表示: P_i = e_ialpha * epsilon_alpha, alpha=xx,yy,zz,yz,xz,xy
 
-    支持两种模式:
-      1. 基于实际对称操作的推导
-      2. 基于点群名称的查表
+    基于实际对称操作推导，不使用查表。
     """
 
-    def __init__(self, pointgroup: str | None = None, ops: list[SymmetryOp] | None = None,
-                 lattice: np.ndarray | None = None):
-        self.pointgroup = pointgroup or ""
+    def __init__(self, ops: list[SymmetryOp], lattice: np.ndarray | None = None):
         self.ops = ops
         self.lattice = lattice
-        self._derived = ops is not None
 
     def components(self) -> list[tuple[int, int, int]]:
         """返回 0-based (i,j,k) 列表"""
-        if self._derived and self.ops:
-            ops_rcart = _symmetry_ops_to_rcart(self.ops, self.lattice)
-            return _constrain_rank3_tensor(ops_rcart, is_axial=False, symmetrize_jk=True)
-        return self._lookup_components()
-
-    def _lookup_components(self) -> list[tuple[int, int, int]]:
-        TABLE = {
-            "C1": [(1,1,1),(1,2,2),(1,3,3),(1,2,3),(1,1,3),(1,1,2),
-                   (2,1,1),(2,2,2),(2,3,3),(2,2,3),(2,1,3),(2,1,2),
-                   (3,1,1),(3,2,2),(3,3,3),(3,2,3),(3,1,3),(3,1,2)],
-            "Ci": [],
-            "Cs": [(1,1,1),(1,2,2),(1,3,3),(1,2,3),(1,1,2),
-                   (2,1,1),(2,2,2),(2,3,3),(2,1,3),(2,2,3),
-                   (3,1,3),(3,2,3),(3,3,3),(3,1,1),(3,2,2)],
-            "C2": [(1,1,3),(1,2,3),(1,3,1),(1,3,2),
-                   (2,1,3),(2,2,3),(2,3,1),(2,3,2),
-                   (3,1,1),(3,2,2),(3,3,3),(3,1,2)],
-            "C2v": [(1,1,3),(2,2,3),(3,1,1),(3,2,2),(3,3,3)],
-            "C3": [(1,1,1),(1,1,2),(1,2,2),(1,2,3),
-                   (2,1,1),(2,1,2),(2,2,2),(2,2,3),
-                   (3,1,3),(3,2,3),(3,3,1),(3,3,2),(3,3,3)],
-            "C3v": [(1,1,1),(1,1,2),(1,2,2),
-                    (2,2,2),(2,1,1),(2,1,2),
-                    (3,1,3),(3,2,3),(3,3,1),(3,3,2),(3,3,3)],
-            "C4": [(1,1,3),(1,2,3),(1,3,1),(1,3,2),
-                   (2,1,3),(2,2,3),(2,3,1),(2,3,2),
-                   (3,1,1),(3,2,2),(3,3,3)],
-            "C4v": [(1,1,3),(1,2,3),(1,3,1),(1,3,2),
-                    (2,1,3),(2,2,3),(2,3,1),(2,3,2),
-                    (3,1,1),(3,2,2),(3,3,3)],
-            "D2d": [(1,2,3),(1,3,2),(2,1,3),(2,3,1),(3,1,2),(3,2,1)],
-            "S4": [(1,1,3),(1,2,3),(1,3,1),(1,3,2),
-                   (2,1,3),(2,2,3),(2,3,1),(2,3,2),
-                   (3,1,1),(3,2,2),(3,3,3)],
-            "C6": [(1,1,3),(1,2,3),(1,3,1),(1,3,2),
-                   (2,1,3),(2,2,3),(2,3,1),(2,3,2),
-                   (3,1,1),(3,2,2),(3,3,3)],
-            "C6v": [(1,1,3),(1,2,3),(1,3,1),(1,3,2),
-                    (2,1,3),(2,2,3),(2,3,1),(2,3,2),
-                    (3,1,1),(3,2,2),(3,3,3)],
-            "Td": [(1,2,3),(2,3,1),(3,1,2)],
-            "D2": [], "D3": [], "D4": [], "D6": [],
-            "D2h": [], "D3d": [], "D4h": [], "D6h": [],
-            "D3h": [], "C3h": [], "C4h": [], "C6h": [], "S6": [],
-            "Oh": [], "O": [], "T": [], "Th": [],
-        }
-        pg = self.pointgroup
-        if pg in TABLE:
-            comps = TABLE[pg]
-            return [(i - 1, j - 1, k - 1) for i, j, k in comps]
-        return []
+        ops_rcart = _symmetry_ops_to_rcart(self.ops, self.lattice)
+        return _constrain_rank3_tensor(ops_rcart, is_axial=False, symmetrize_jk=True)
 
     def voigt_matrix(self) -> np.ndarray:
         """返回 3x6 Voigt 矩阵（1 表示非零）"""
@@ -554,10 +500,7 @@ class PiezoelectricTensor:
 
     def report(self) -> str:
         lines = []
-        if self._derived:
-            lines.append(f"  压电张量（基于 {len(self.ops)} 个对称操作推导）")
-        else:
-            lines.append(f"  压电张量（点群 {self.pointgroup}）")
+        lines.append(f"  压电张量（基于 {len(self.ops)} 个对称操作推导）")
 
         comps = self.components()
         if not comps:
@@ -590,49 +533,27 @@ class PiezoelectricTensor:
 # ============================================================
 
 class SpinHallTensor:
-    """自旋霍尔电导张量 sigma^s_ijk
+    """自旋霍尔电导张量 σ^{j}_{ik}
 
-    J_i^{s_j} = sigma^s_ijk * E_k
+    J_i^{s_j} = σ^{j}_{ik} * E_k
     轴矢张量: 变换规则多一个 det(R) 因子
 
-    支持推导模式和查表模式
+    基于实际对称操作推导，不使用查表。
     """
 
-    def __init__(self, pointgroup: str | None = None, ops: list[SymmetryOp] | None = None,
-                 lattice: np.ndarray | None = None):
-        self.pointgroup = pointgroup or ""
+    def __init__(self, ops: list[SymmetryOp], lattice: np.ndarray | None = None):
         self.ops = ops
         self.lattice = lattice
-        self._derived = ops is not None
 
     def components(self) -> list[tuple[int, int, int]]:
         """返回 0-based (i,j,k) 列表"""
-        if self._derived and self.ops:
-            ops_rcart = _symmetry_ops_to_rcart(self.ops, self.lattice)
-            return _constrain_rank3_tensor(ops_rcart, is_axial=True,
-                                           symmetrize_jk=False, symmetrize_ij=False)
-        return self._lookup_components()
-
-    def _lookup_components(self) -> list[tuple[int, int, int]]:
-        TABLE = {
-            "C1": [(0,1,2),(0,2,1),(1,0,2),(1,2,0),(2,0,1),(2,1,0)],
-            "Ci": [],
-            "Cs": [(0,2,0),(0,2,1),(1,2,0),(1,2,1),
-                   (2,0,0),(2,1,1),(2,0,1),(2,1,0)],
-            "C2v": [(0,1,2),(0,2,1),(1,0,2),(1,2,0),(2,0,1),(2,1,0)],
-            "C4v": [(0,1,2),(0,2,1),(1,0,2),(1,2,0),(2,0,1),(2,1,0)],
-            "D2h": [],
-            "Oh": [],
-            "Td": [(0,1,2),(1,2,0),(2,0,1)],
-        }
-        return TABLE.get(self.pointgroup, [])
+        ops_rcart = _symmetry_ops_to_rcart(self.ops, self.lattice)
+        return _constrain_rank3_tensor(ops_rcart, is_axial=True,
+                                       symmetrize_jk=False, symmetrize_ij=False)
 
     def report(self) -> str:
         lines = []
-        if self._derived:
-            lines.append(f"  自旋霍尔电导（基于 {len(self.ops)} 个对称操作推导）")
-        else:
-            lines.append(f"  自旋霍尔电导（点群 {self.pointgroup}）")
+        lines.append(f"  自旋霍尔电导（基于 {len(self.ops)} 个对称操作推导）")
 
         comps = self.components()
         if not comps:
@@ -651,22 +572,6 @@ class SpinHallTensor:
 # 综合报告
 # ============================================================
 
-def _hm_to_schoenflies(hm: str) -> str:
-    """Hermann-Mauguin -> Schoenflies 点群转换"""
-    mapping = {
-        "1": "C1", "-1": "Ci",
-        "2": "C2", "m": "Cs", "2/m": "C2h",
-        "mm2": "C2v", "222": "D2", "mmm": "D2h",
-        "4": "C4", "-4": "S4", "4/m": "C4h",
-        "4mm": "C4v", "-42m": "D2d", "422": "D4", "4/mmm": "D4h",
-        "3": "C3", "-3": "S6", "3m": "C3v", "32": "D3", "-3m": "D3d",
-        "6": "C6", "-6": "C3h", "6/m": "C6h",
-        "6mm": "C6v", "-62m": "D3h", "622": "D6", "6/mmm": "D6h",
-        "23": "T", "m-3": "Th", "-43m": "Td", "432": "O", "m-3m": "Oh",
-    }
-    key = hm.replace(" ", "")
-    return mapping.get(key, hm)
-
 
 def full_tensor_report(
     analyzer: SymmetryAnalyzer,
@@ -680,9 +585,6 @@ def full_tensor_report(
     result = analyzer._result
     if result is None:
         return "请先运行对称性分析"
-
-    pointgroup = result.pointgroup_symbol
-    pg_sch = _hm_to_schoenflies(pointgroup)
 
     lines = []
 
