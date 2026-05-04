@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>vasp-symmetry — VASP 结构对称性分析工具</title>
+<title>vasp-symmetry — VASP 结构对称性分析工具（含 k·p 模型与张量性质）</title>
 <style>
   :root {
     --bg: #f8f9fa;
@@ -188,7 +188,7 @@
 
 <header>
   <h1>vasp-symmetry</h1>
-  <p>VASP 结构对称性分析工具包 — 自动识别空间群、对称操作，支持 k 点小群分析</p>
+  <p>VASP 结构对称性分析工具包 — 自动识别空间群、对称操作，支持 k 点小群分析、k·p 模型推导、压电与自旋霍尔张量</p>
   <span class="badge">Python · spglib · 晶体学 · VASP</span>
 </header>
 
@@ -201,6 +201,7 @@
     <li><a href="#examples">实例</a></li>
     <li><a href="#output">输出解读</a></li>
     <li><a href="#api">程序调用</a></li>
+    <li><a href="#tensors">张量性质</a></li>
   </ul>
 </nav>
 
@@ -302,6 +303,46 @@ python3 run.py POSCAR</code></pre>
 <h3>输出格式</h3>
 <p>摘要模式输出：空间群号、HM 符号、点群、各类型对称操作计数。</p>
 <p>详细模式额外输出每个操作的 3×3 旋转矩阵和分数坐标平移向量。</p>
+
+<h3>对称操作对 (k, σ) 的作用</h3>
+<p>
+  每个空间群对称操作 (R|τ) 作用于倒空间 k 矢量和自旋空间 Pauli 矩阵 σ 的方式为：
+</p>
+<ul>
+  <li><strong>k 变换</strong>：在分数坐标下 k → R·k；在 Cartesian 坐标下 k → R<sub>cart</sub>·k</li>
+  <li><strong>σ 变换</strong>：σ<sub>i</sub> → det(R) · R<sub>ij</sub> σ<sub>j</sub>（反映自旋 1/2 的轴矢变换性质）</li>
+</ul>
+<p>使用 <code>--pauli-action</code> 可以输出每个操作的这三种变换表达式。</p>
+
+<h3>k·p 模型（对称性约束）</h3>
+<p>
+  给定 k 点的小群，k·p 方法将哈密顿量展开为 k 多项式的级数：
+</p>
+<pre><code>H(k) = Σ f<sub>n</sub>(k) · M<sub>n</sub></code></pre>
+<p>
+  其中 f<sub>n</sub>(k) 是 k 的齐次多项式，M<sub>n</sub> 是自旋空间的 2×2 矩阵（Pauli 基）。
+  工具自动找出满足所有小群对称操作不变性的项，即：
+</p>
+<pre><code>D(R)† H(R·k) D(R) = H(k)</code></pre>
+<p>
+  使用 <code>--kp</code>（默认 Γ 点）和 <code>--kp-order N</code> 指定展开阶数。
+</p>
+
+<h3>压电张量 e<sub>ijk</sub></h3>
+<p>
+  压电效应描述应变 ε<sub>jk</sub> 诱导的电极化 P<sub>i</sub> = e<sub>ijk</sub> ε<sub>jk</sub>。
+  三阶压电张量 e<sub>ijk</sub> 受 Neumann 原理约束，只有满足点群对称性的分量非零。
+  工具内置 20+ 个点群的压电张量查找表，根据结构自动匹配。
+</p>
+<p>使用 <code>--tensor</code> 输出。</p>
+
+<h3>自旋霍尔电导 σ<sup>s</sup><sub>ijk</sub></h3>
+<p>
+  自旋霍尔效应描述电场 E<sub>k</sub> 诱导的自旋电流 J<sub>i</sub><sup>s<sub>j</sub></sup> = σ<sup>s</sup><sub>ijk</sub> E<sub>k</sub>。
+  由于自旋极化方向是轴矢，变换规则多一个 det(R) 因子：
+</p>
+<pre><code>σ<sup>s</sup><sub>ijk</sub> → det(R) · R<sub>il</sub> R<sub>jm</sub> R<sub>kn</sub> σ<sup>s</sup><sub>lmn</sub></code></pre>
+<p>使用 <code>--tensor</code> 一并输出。</p>
 </section>
 
 <!-- ==================== 实例 ==================== -->
@@ -369,6 +410,30 @@ Direct
   L→Γ#6            →  C3v     (6 ops)
   Γ                →  Oh      (48 ops)</pre>
 
+<h3>k·p 模型</h3>
+<pre><code>python run.py examples/POSCAR_Si --kp --kp-order 2</code></pre>
+
+<div class="output-box">  k·p 模型（对称性允许项，最高阶数 = 2）
+
+  第 0 阶 (1 项):
+    1                ×  I
+
+  H(k) =
+    +  1                *  I</pre>
+
+<p>对于 Fd-3m (Oh 点群)，Γ 点仅有恒等项对称允许。对于更低对称性的结构，允许项会显著增多，例如 C<sub>2v</sub> 在 Γ 点允许线性项 k<sub>z</sub>·I。</p>
+
+<h3>压电与自旋霍尔张量</h3>
+<pre><code>python run.py examples/POSCAR_Si --tensor</code></pre>
+
+<div class="output-box">  压电张量 (P_i = e_ijk ε_jk)
+  点群 Oh: 所有分量为 0（有反演中心或对称性禁止）
+
+  自旋霍尔电导张量 (J_i^s_j = σ^s_ijk E_k)
+  点群 Oh: 所有分量为 0（有反演中心或对称性禁止）</pre>
+
+<p>金刚石硅具有反演中心（Oh 点群），因此压电效应和自旋霍尔效应均为零。对于无中心对称的晶体（如 GaAs，T<sub>d</sub> 点群），则允许非零分量。</p>
+
 </section>
 
 <!-- ==================== 输出解读 ==================== -->
@@ -386,6 +451,11 @@ Direct
   <tr><td>σ 法向: [100]</td><td>法向量为 [100] 的镜面</td></tr>
   <tr><td>d-滑移</td><td>对角滑移面（金刚石型滑移），滑移分量 (a±b)/4</td></tr>
   <tr><td>4₁ 螺旋</td><td>四次螺旋轴，螺距为 1/4 晶格常数</td></tr>
+  <tr><td>k → R·k</td><td>对称操作对 k 矢量的变换（分数坐标）</td></tr>
+  <tr><td>σ<sub>i</sub> → det(R)·R<sub>ij</sub> σ<sub>j</sub></td><td>对称操作对 Pauli 矩阵的变换</td></tr>
+  <tr><td>H(k) = Σ f<sub>n</sub>(k) M<sub>n</sub></td><td>k·p 哈密顿量展开（对称性允许项）</td></tr>
+  <tr><td>e<sub>ijk</sub></td><td>压电张量（Neumann 原理约束）</td></tr>
+  <tr><td>σ<sup>s</sup><sub>ijk</sub></td><td>自旋霍尔电导张量（轴矢变换）</td></tr>
 </table>
 
 <div class="result">
@@ -435,6 +505,126 @@ print(f"{r.kpoint_label}: {r.pointgroup}, {r.num_operations} ops")</code></pre>
 </section>
 
 </main>
+
+<!-- ==================== 张量性质 ==================== -->
+<section id="tensors">
+<h2>张量性质</h2>
+
+<p>用于探索各点群下的压电和自旋霍尔电导张量非零分量。</p>
+
+<div class="card-grid">
+  <div class="card">
+    <h4>压电张量 e<sub>ijk</sub></h4>
+    <p>根据点群对称性约束的压电张量非零分量。支持 20+ 个点群。</p>
+    <pre><code>from vasp_symmetry import PiezoelectricTensor
+pe = PiezoelectricTensor("C2v")
+print(pe.report())</code></pre>
+  </div>
+  <div class="card">
+    <h4>自旋霍尔电导 σ<sup>s</sup><sub>ijk</sub></h4>
+    <p>自旋霍尔效应的张量非零分量。考虑了自旋极化的轴矢变换性质。</p>
+    <pre><code>from vasp_symmetry import SpinHallTensor
+sh = SpinHallTensor("C4v")
+print(sh.report())</code></pre>
+  </div>
+  <div class="card">
+    <h4>综合报告</h4>
+    <p>一键输出 (k,σ) 作用、k·p 模型、压电和自旋霍尔张量。</p>
+    <pre><code>from vasp_symmetry import full_tensor_report
+print(full_tensor_report(analyzer))</code></pre>
+  </div>
+</div>
+
+<h3>压电张量点群对照表</h3>
+<table>
+  <tr><th>点群 (Schönflies)</th><th>HM 符号</th><th>非零单独分量</th><th>备注</th></tr>
+  <tr><td>C<sub>1</sub></td><td>1</td><td>18 个独立分量</td><td>无对称性约束</td></tr>
+  <tr><td>C<sub>i</sub></td><td>-1</td><td>全零</td><td>有反演中心</td></tr>
+  <tr><td>C<sub>s</sub></td><td>m</td><td>10 个</td><td></td></tr>
+  <tr><td>C<sub>2</sub></td><td>2</td><td>8 个</td><td>C<sub>2</sub> // z</td></tr>
+  <tr><td>C<sub>2v</sub></td><td>mm2</td><td>3 个</td><td>e<sub>31}, e<sub>32}, e<sub>33</td></tr>
+  <tr><td>C<sub>3</sub></td><td>3</td><td>6 个</td><td></td></tr>
+  <tr><td>C<sub>3v</sub></td><td>3m</td><td>4 个</td><td></td></tr>
+  <tr><td>C<sub>4</sub></td><td>4</td><td>4 个</td><td></td></tr>
+  <tr><td>C<sub>4v</sub></td><td>4mm</td><td>4 个</td><td></td></tr>
+  <tr><td>S<sub>4</sub></td><td>-4</td><td>4 个</td><td></td></tr>
+  <tr><td>D<sub>2d</sub></td><td>-42m</td><td>1 个</td><td>e<sub>14</td></tr>
+  <tr><td>T<sub>d</sub></td><td>-43m</td><td>1 个</td><td>e<sub>14</sub> = e<sub>25</sub> = e<sub>36</sub></td></tr>
+  <tr><td>D<sub>2</sub>, D<sub>3</sub>, D<sub>4</sub>, D<sub>6</sub>, Oh, O, T, Th</td><td>各类高对称</td><td>全零</td><td>含反演中心</td></tr>
+</table>
+
+<h3>自旋霍尔电导点群对照表</h3>
+<table>
+  <tr><th>点群 (Schönflies)</th><th>非零分量</th><th>备注</th></tr>
+  <tr><td>C<sub>1</sub></td><td>σ<sup>s</sup><sub>312}, σ<sup>s</sup><sub>321}, σ<sup>s</sup><sub>132}, σ<sup>s</sup><sub>231}, σ<sup>s</sup><sub>123}, σ<sup>s</sup><sub>213</td><td>6 个独立</td></tr>
+  <tr><td>C<sub>s</sub></td><td>8 个</td><td>包含 z 方向极化</td></tr>
+  <tr><td>C<sub>2v</sub></td><td>σ<sup>s</sup><sub>132}, σ<sup>s</sup><sub>231</td><td></td></tr>
+  <tr><td>C<sub>4v</sub></td><td>σ<sup>s</sup><sub>132}, σ<sup>s</sup><sub>231</td><td></td></tr>
+  <tr><td>T<sub>d</sub></td><td>σ<sup>s</sup><sub>123</sub> = σ<sup>s</sup><sub>231</sub> = σ<sup>s</sup><sub>312</td><td>全反对称</td></tr>
+  <tr><td>C<sub>i</sub>, D<sub>2h</sub>, Oh</td><td>全零</td><td>有反演中心</td></tr>
+</table>
+
+</section>
+
+<!-- ==================== 张量性质 ==================== -->
+<section id="tensors">
+<h2>张量性质</h2>
+
+<p>用于探索各点群下的压电和自旋霍尔电导张量非零分量。</p>
+
+<div class="card-grid">
+  <div class="card">
+    <h4>压电张量 e<sub>ijk</sub></h4>
+    <p>根据点群对称性约束的压电张量非零分量。支持 20+ 个点群。</p>
+    <pre><code>from vasp_symmetry import PiezoelectricTensor
+pe = PiezoelectricTensor("C2v")
+print(pe.report())</code></pre>
+  </div>
+  <div class="card">
+    <h4>自旋霍尔电导 σ<sup>s</sup><sub>ijk</sub></h4>
+    <p>自旋霍尔效应的张量非零分量。考虑了自旋极化的轴矢变换性质。</p>
+    <pre><code>from vasp_symmetry import SpinHallTensor
+sh = SpinHallTensor("C4v")
+print(sh.report())</code></pre>
+  </div>
+  <div class="card">
+    <h4>综合报告</h4>
+    <p>一键输出 (k,σ) 作用、k·p 模型、压电和自旋霍尔张量。</p>
+    <pre><code>from vasp_symmetry import full_tensor_report
+print(full_tensor_report(analyzer))</code></pre>
+  </div>
+</div>
+
+<h3>压电张量点群对照表</h3>
+<table>
+  <tr><th>点群 (Schönflies)</th><th>HM 符号</th><th>非零单独分量</th><th>备注</th></tr>
+  <tr><td>C<sub>1</sub></td><td>1</td><td>18 个独立分量</td><td>无对称性约束</td></tr>
+  <tr><td>C<sub>i</sub></td><td>-1</td><td>全零</td><td>有反演中心</td></tr>
+  <tr><td>C<sub>s</sub></td><td>m</td><td>10 个</td><td></td></tr>
+  <tr><td>C<sub>2</sub></td><td>2</td><td>8 个</td><td>C<sub>2</sub> // z</td></tr>
+  <tr><td>C<sub>2v</sub></td><td>mm2</td><td>3 个</td><td>e<sub>31}, e<sub>32}, e<sub>33</td></tr>
+  <tr><td>C<sub>3</sub></td><td>3</td><td>6 个</td><td></td></tr>
+  <tr><td>C<sub>3v</sub></td><td>3m</td><td>4 个</td><td></td></tr>
+  <tr><td>C<sub>4</sub></td><td>4</td><td>4 个</td><td></td></tr>
+  <tr><td>C<sub>4v</sub></td><td>4mm</td><td>4 个</td><td></td></tr>
+  <tr><td>S<sub>4</sub></td><td>-4</td><td>4 个</td><td></td></tr>
+  <tr><td>D<sub>2d</sub></td><td>-42m</td><td>1 个</td><td>e<sub>14</td></tr>
+  <tr><td>T<sub>d</sub></td><td>-43m</td><td>1 个</td><td>e<sub>14</sub> = e<sub>25</sub> = e<sub>36</sub></td></tr>
+  <tr><td>D<sub>2</sub>, D<sub>3</sub>, D<sub>4</sub>, D<sub>6</sub>, Oh, O, T, Th</td><td>各类高对称</td><td>全零</td><td>含反演中心</td></tr>
+</table>
+
+<h3>自旋霍尔电导点群对照表</h3>
+<table>
+  <tr><th>点群 (Schönflies)</th><th>非零分量</th><th>备注</th></tr>
+  <tr><td>C<sub>1</sub></td><td>σ<sup>s</sup><sub>312}, σ<sup>s</sup><sub>321}, σ<sup>s</sup><sub>132}, σ<sup>s</sup><sub>231}, σ<sup>s</sup><sub>123}, σ<sup>s</sup><sub>213</td><td>6 个独立</td></tr>
+  <tr><td>C<sub>s</sub></td><td>8 个</td><td>包含 z 方向极化</td></tr>
+  <tr><td>C<sub>2v</sub></td><td>σ<sup>s</sup><sub>132}, σ<sup>s</sup><sub>231</td><td></td></tr>
+  <tr><td>C<sub>4v</sub></td><td>σ<sup>s</sup><sub>132}, σ<sup>s</sup><sub>231</td><td></td></tr>
+  <tr><td>T<sub>d</sub></td><td>σ<sup>s</sup><sub>123</sub> = σ<sup>s</sup><sub>231</sub> = σ<sup>s</sup><sub>312</td><td>全反对称</td></tr>
+  <tr><td>C<sub>i</sub>, D<sub>2h</sub>, Oh</td><td>全零</td><td>有反演中心</td></tr>
+</table>
+
+</section>
 
 <footer>
   <p>vasp-symmetry &mdash; 基于 <a href="https://spglib.github.io/spglib/">spglib</a> 和 <a href="https://pymatgen.org/">pymatgen</a> 构建</p>
