@@ -343,22 +343,22 @@ class KpModel:
 # 张量约束引擎：基于实际对称操作推导非零分量
 # ============================================================
 
-# Voigt 指标: xx=0, yy=1, zz=2, yz=3, xz=4, xy=5
-VOIGT_PAIRS = [(0, 0), (1, 1), (2, 2), (1, 2), (0, 2), (0, 1)]
-VOIGT_LABELS = ["xx", "yy", "zz", "yz", "xz", "xy"]
+# Voigt 指标(VASP约定): xx=0, yy=1, zz=2, xy=3, yz=4, zx=5
+VOIGT_PAIRS = [(0, 0), (1, 1), (2, 2), (0, 1), (1, 2), (0, 2)]
+VOIGT_LABELS = ["xx", "yy", "zz", "xy", "yz", "zx"]
 IDX_TO_XYZ = ["x", "y", "z"]
 
 
 def _voigt_idx(j: int, k: int) -> int:
-    """3x3 对称指标对 (j,k) -> Voigt 索引 (0-based)"""
+    """3x3 对称指标对 (j,k) -> Voigt 索引 (0-based, VASP 约定)"""
     if j == k:
         return j
-    if {j, k} == {1, 2}:
-        return 3  # yz
-    if {j, k} == {0, 2}:
-        return 4  # xz
     if {j, k} == {0, 1}:
-        return 5  # xy
+        return 3  # xy
+    if {j, k} == {1, 2}:
+        return 4  # yz
+    if {j, k} == {0, 2}:
+        return 5  # zx
     return -1
 
 
@@ -508,7 +508,7 @@ class PiezoelectricTensor:
             return "\n".join(lines)
 
         vmat = self.voigt_matrix()
-        lines.append("  Voigt 3x6 矩阵 (i=1..3, alpha=xx,yy,zz,yz,xz,xy):")
+        lines.append("  Voigt 3x6 矩阵 (i=x,y,z; 列: xx yy zz xy yz zx):")
         header = "       " + "  ".join(f"{l:>5s}" for l in VOIGT_LABELS)
         lines.append(header)
         for i in range(3):

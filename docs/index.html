@@ -334,7 +334,7 @@ python3 run.py POSCAR</code></pre>
   三阶压电张量 e<sub>ijk</sub> 受 Neumann 原理约束。工具从 POSCAR 的
   <strong>实际对称操作</strong>出发，对全秩张量施加变换约束
   (e'<sub>ijk</sub> = R<sub>il</sub>R<sub>jm</sub>R<sub>kn</sub> e<sub>lmn</sub>)，
-  自动过滤出所有对称允许的非零分量，并以 3×6 Voigt 矩阵形式输出。
+  自动过滤出所有对称允许的非零分量，并以 3×6 Voigt 矩阵（VASP 约定: xx yy zz xy yz zx）输出。
 </p>
 <p>使用 <code>--tensor</code> 输出。工具基于 POSCAR 的实际对称操作进行推导，不依赖标准取向假设，结果始终正确。</p>
 
