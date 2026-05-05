@@ -387,8 +387,7 @@ class LittleGroupAnalyzer:
             if n_C2 == 3:
                 if has_inv:
                     return "D2h"
-                # D2 或 C2v
-                return "C2v" if has_inv is False else "D2"  # 这里 has_inv 已经检查过
+                return "D2"
             if n_C2 == 1:
                 if has_inv:
                     return "C2h"

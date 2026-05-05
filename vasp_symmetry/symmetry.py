@@ -234,7 +234,8 @@ class SymmetryAnalyzer:
         is_identity = np.allclose(R, np.eye(3), atol=self._TOL)
         is_inversion = np.allclose(R, -np.eye(3), atol=self._TOL)
 
-        is_pure = np.all(np.abs(t) < self._TOL)
+        # 使用稍宽松的容差判断纯旋转（spglib 可能返回 ~1e-8 的数值噪声）
+        is_pure = np.all(np.abs(t) < 1e-7)
 
         # --- 恒等操作 ---
         if is_identity:
