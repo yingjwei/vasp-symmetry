@@ -18,7 +18,6 @@ from .symmetry_tensors import (
     KpModel, PiezoelectricTensor, SpinHallTensor,
     analyze_operation_action, report_symmetry_actions, full_tensor_report,
 )
-from .magnetic_symmetry import MagneticSymmetryAnalyzer
 from .cli import main
 
 __all__ = [
@@ -28,3 +27,10 @@ __all__ = [
     "MagneticSymmetryAnalyzer",
     "main",
 ]
+
+
+def __getattr__(name):
+    if name == "MagneticSymmetryAnalyzer":
+        from .magnetic_symmetry import MagneticSymmetryAnalyzer as _msa
+        return _msa
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

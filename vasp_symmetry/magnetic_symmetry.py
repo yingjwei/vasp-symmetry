@@ -10,6 +10,12 @@ from __future__ import annotations
 
 import numpy as np
 import spglib
+if not hasattr(spglib, 'MsgCell'):
+    raise ImportError(
+        "spglib 版本过旧，缺少磁群 API。请升级 spglib:\n"
+        "  pip install --upgrade spglib\n"
+        "  需要 spglib >= 2.3.0 (当前: " + getattr(spglib, '__version__', '未知') + ")"
+    )
 from dataclasses import dataclass, field
 from typing import Literal
 

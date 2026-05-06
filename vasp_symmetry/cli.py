@@ -15,7 +15,6 @@ from .symmetry_tensors import (
     report_symmetry_actions, KpModel, PiezoelectricTensor,
     SpinHallTensor, full_tensor_report,
 )
-from .magnetic_symmetry import MagneticSymmetryAnalyzer
 
 
 # ============================================================
@@ -285,6 +284,7 @@ def _task_magnetic(structure, symprec):
     print()
 
     try:
+        from .magnetic_symmetry import MagneticSymmetryAnalyzer
         mag_analyzer = MagneticSymmetryAnalyzer(structure, symprec=symprec)
         mag_result = mag_analyzer.analyze(magmoms)
         print(mag_analyzer.summary(mag_result))
@@ -524,6 +524,7 @@ def main(argv: list[str] | None = None) -> int:
             return 1
 
         _print_header("磁对称性 (Magnetic Space Group) 分析")
+        from .magnetic_symmetry import MagneticSymmetryAnalyzer
         mag_analyzer = MagneticSymmetryAnalyzer(structure, symprec=args.symprec)
         mag_result = mag_analyzer.analyze(magmoms)
         print(mag_analyzer.summary(mag_result))
