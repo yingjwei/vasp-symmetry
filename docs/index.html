@@ -269,9 +269,9 @@ python3 run.py POSCAR</code></pre>
     <pre><code>python run.py POSCAR --path "G,0,0,0 X,0.5,0,0.5"</code></pre>
   </div>
   <div class="card">
-    <h4>磁空间群分析</h4>
-    <p>磁群类型、BNS/OG 符号、交错磁 (altermagnetism) 判定。</p>
-    <pre><code>python run.py POSCAR --magmom "1 -1 0..."</code></pre>
+    <h4>对称操作对 (k, σ) 作用</h4>
+    <p>每个对称操作对 k 矢量和自旋 Pauli 矩阵的变换。</p>
+    <pre><code>python run.py POSCAR --pauli-action</code></pre>
   </div>
 </div>
 <h3>交互菜单</h3>
@@ -285,12 +285,11 @@ python3 run.py POSCAR</code></pre>
    4) 高对称 k 点列表
    5) k.p 模型
    6) 压电 & 自旋霍尔张量
-   7) 磁空间群 + 交错磁分析
-   8) 对称操作对 (k,sigma) 作用
-   9) 全部功能依次执行
+   7) 对称操作对 (k,sigma) 作用
+   8) 全部功能依次执行
    0) 退出
 ============================================================
-  请选择 [0-9]:</code></pre>
+  请选择 [0-8]:</code></pre>
 <p>菜单选项 2（k 路径分析）会根据晶系自动推荐标准高对称路径，直接选择编号即可，无需手动输入坐标。</p></div>
 </section>
 
@@ -401,22 +400,7 @@ Direct
 
 
 
-<h3>磁空间群 (Magnetic Space Group)</h3>
-<p>
-  基于 spglib 2.0+ 磁群 API，支持对磁性结构的对称性分析：
-</p>
-<ul>
-  <li><strong>MSG 类型</strong>：Type-I (无色), Type-II (灰色, 含时间反演), Type-III/IV (黑色, 磁有序)</li>
-  <li><strong>BNS/OG 符号</strong>：三种主流磁群命名体系 (UNI, BNS, OG)</li>
-  <li><strong>交替磁 (Altermagnetism) 候选判定</strong>：分析是否存在自旋保持且不含时间反演的晶体对称操作</li>
-</ul>
-<p>
-  使用方式：在交互菜单选 7，或在命令行通过 <code>--magmom</code> 指定磁矩：
-</p>
-<pre><code>python run.py POSCAR --magmom "0 0 0 0 1 -1 0.5 -0.5 0.5 -0.5"</code></pre>
-<p>
-  磁矩顺序与 POSCAR 中的原子顺序一致，正数=自旋向上，负数=自旋向下，0=非磁性。
-  输出包含磁空间群编号、BNS 符号、MSG 类型和交错磁候选判定。<h3>k 点小群分析</h3>
+<h3>k 点小群分析</h3>
 <pre><code>python run.py examples/POSCAR_Si --high-sym</code></pre>
 
 <div class="output-box">  高对称 k 点:
@@ -566,19 +550,6 @@ print(sh.report())
 # 8. 综合报告 (基于实际对称操作推导)
 print(full_tensor_report(analyzer))</code></pre>
   
-<div class="card">
-    <h4>磁空间群分析</h4>
-    <p>磁群类型 (I-IV)、BNS/OG 符号、交错磁 (altermagnetism) 候选判定。</p>
-    <pre><code>from vasp_symmetry import MagneticSymmetryAnalyzer
-
-analyzer = MagneticSymmetryAnalyzer(structure)
-result = analyzer.analyze([1.0, -1.0, 0.0, ...])
-print(analyzer.summary(result))
-print(f"UNI #{result.uni_number}, BNS: {result.bns_number}")
-print(f"MSG type: {result.msg_type}")
-print(f"Altermagnet: {result.altermagnet_candidate}")
-print(f"Reason: {result.altermagnetism_reason}")</code></pre>
-  </div>
 </div></div>
   <div class="card">
     <h4>自旋霍尔电导 σ^{s}_{ik}</h4>

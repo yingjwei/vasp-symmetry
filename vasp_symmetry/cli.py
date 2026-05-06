@@ -28,7 +28,6 @@ MENU_ITEMS = [
     ("高对称 k 点列表", "显示该晶系常见高对称 k 点"),
     ("k·p 模型", "对称性允许项展开"),
     ("压电 & 自旋霍尔张量", "基于实际对称操作推导"),
-    ("磁空间群 + 交错磁", "MSG 类型分类, Altermagnetism 候选判定"),
     ("对称操作对 (k,σ) 作用", "每个对称操作对波矢和自旋的变换"),
     ("全部功能依次执行", "运行以上所有分析"),
 ]
@@ -59,7 +58,7 @@ def run_interactive(structure: Structure, symprec: float) -> int:
         print("=" * 58)
 
         try:
-            choice = input("  请选择 [0-9]: ").strip()
+            choice = input("  请选择 [0-8]: ").strip()
         except (EOFError, KeyboardInterrupt):
             print("\n  再见。")
             break
@@ -80,10 +79,8 @@ def run_interactive(structure: Structure, symprec: float) -> int:
         elif choice == "6":
             _task_tensor(structure, symprec)
         elif choice == "7":
-            _task_magnetic(structure, symprec)
-        elif choice == "8":
             _task_pauli(structure, symprec)
-        elif choice == "9":
+        elif choice == "8":
             _task_all(structure, symprec)
         else:
             print("  无效选择，请重试。")
@@ -250,63 +247,6 @@ def _task_tensor(structure, symprec):
     print(full_tensor_report(analyzer))
 
 
-def _task_magnetic(structure, symprec):
-    _print_header("磁空间群 & 交错磁分析")
-    n_atoms = structure.total_atoms
-
-    print(f"  总原子数: {n_atoms}")
-    print(f"  元素分布: {dict(zip(structure.elements, structure.num_atoms))}")
-    print()
-    print("  逐原子输入磁矩, 回车=0")
-    print("  正数=自旋向上, 负数=自旋向下, 0=非磁性")
-    print()
-
-    try:
-        import readline
-    except ImportError:
-        pass  # Windows: readline unavailable, fine
-
-    magmoms = []
-    while True:
-        magmoms = []
-        error = False
-        try:
-            for elem, cnt in zip(structure.elements, structure.num_atoms):
-                for i in range(1, cnt + 1):
-                    label = f"{elem}{i}"
-                    prompt = f"    {label:<5} [{0}]: "
-                    val = input(prompt).strip()
-                    if val == "":
-                        magmoms.append(0.0)
-                    else:
-                        magmoms.append(float(val))
-        except (EOFError, KeyboardInterrupt):
-            print()
-            return
-        except ValueError:
-            print("  格式错误，只能输入数字。重试该原子。")
-            error = True
-
-        if error:
-            print("  (重新输入该原子的值)\n")
-            continue
-
-        print()
-        print(f"  磁矩: {' '.join(f'{m:>6.2f}' for m in magmoms)}")
-        confirm = input("  确认? (y/n, 默认 y): ").strip().lower()
-        if confirm != 'n':
-            break
-        print("  (重新输入)\n")
-
-    try:
-        from .magnetic_symmetry import MagneticSymmetryAnalyzer
-        mag_analyzer = MagneticSymmetryAnalyzer(structure, symprec=symprec)
-        mag_result = mag_analyzer.analyze(magmoms)
-        print(mag_analyzer.summary(mag_result))
-    except Exception as e:
-        print(f"  分析失败: {e}")
-
-
 def _task_pauli(structure, symprec):
     _print_header("对称操作对 (k, σ) 的作用")
     analyzer, _ = _get_analyzer(structure, symprec)
@@ -327,11 +267,6 @@ def _task_all(structure, symprec):
     _task_tensor(structure, symprec)
     print("─" * 60)
 
-    # 磁分析需要交互输入, 跳过
-    print("  磁空间群 & 交错磁分析:")
-    print("    跳过 (需交互输入磁矩)")
-    print()
-
 
 # ============================================================
 # 批处理模式 (原 CLI 接口)
@@ -349,7 +284,6 @@ def main(argv: list[str] | None = None) -> int:
   vasp-symmetry POSCAR --high-sym                高对称 k 点
   vasp-symmetry POSCAR --kp                       k·p 模型
   vasp-symmetry POSCAR --tensor                  压电/自旋霍尔张量
-  vasp-symmetry POSCAR --magmom "1 -1 0..."      磁空间群
   vasp-symmetry POSCAR --symprec 1e-3            调整精度
 
 不指定任务参数时进入交互菜单模式。
@@ -370,8 +304,6 @@ def main(argv: list[str] | None = None) -> int:
                         help="对 Γ 点进行 k·p 模型分析")
     parser.add_argument("--tensor", action="store_true",
                         help="输出压电系数和自旋霍尔电导张量")
-    parser.add_argument("--magnetic", action="store_true",
-                        help="执行磁空间群和交错磁分析")
 
     # 参数
     parser.add_argument("-k", "--kpoint", action="append", nargs=3,
@@ -385,8 +317,6 @@ def main(argv: list[str] | None = None) -> int:
                         help="对称性检测精度 (默认: 1e-5)")
     parser.add_argument("--kp-order", type=int, default=2,
                         help="k·p 展开最高阶数 (默认: 2)")
-    parser.add_argument("--magmom", type=str, default=None,
-                        help="磁矩列表, 如 '0 0 0 1 -1 0.5 -0.5 0.5 -0.5'")
     parser.add_argument("--interactive", "-i", action="store_true",
                         help="强制进入交互菜单模式")
 
@@ -399,7 +329,6 @@ def main(argv: list[str] | None = None) -> int:
     has_task_flags = any([
         args.kpoint, args.high_sym, args.path,
         args.pauli_action, args.kp, args.tensor,
-        args.magmom is not None, args.magnetic,
         args.detail,
     ])
 
@@ -530,22 +459,7 @@ def main(argv: list[str] | None = None) -> int:
             print(kp.report(max_order=args.kp_order))
         print()
 
-    # 8. 磁对称性分析
-    if args.magmom is not None or args.magnetic:
-        mag_str = args.magmom or ""
-        magmoms = [float(x) for x in mag_str.replace(",", " ").split() if x.strip()]
-        if len(magmoms) != structure.total_atoms:
-            print(f"错误: 磁矩数 ({len(magmoms)}) 不等于总原子数 ({structure.total_atoms})")
-            return 1
-
-        _print_header("磁对称性 (Magnetic Space Group) 分析")
-        from .magnetic_symmetry import MagneticSymmetryAnalyzer
-        mag_analyzer = MagneticSymmetryAnalyzer(structure, symprec=args.symprec)
-        mag_result = mag_analyzer.analyze(magmoms)
-        print(mag_analyzer.summary(mag_result))
-        print()
-
-    # 9. 张量性质
+    # 8. 张量性质
     if args.tensor:
         _print_header("压电 & 自旋霍尔张量")
         print(full_tensor_report(analyzer))
