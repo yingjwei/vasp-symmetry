@@ -302,11 +302,12 @@ class SymmetryAnalyzer:
                 else:
                     # 有面内平移 → 滑移面
                     glide_type = self._glide_type(t_parallel, normal)
+                    t_parallel_str = self._fmt_vector(t_parallel)
                     return SymmetryOp(
                         rotation=R, translation=t,
                         op_type=OpType.GLIDE, symbol=glide_type,
                         order=2,
-                        axis_info=f"滑移面 法向: {normal_str}, 滑移方向: {t_parallel}"
+                        axis_info=f"滑移面 法向: {normal_str}, 滑移方向: {t_parallel_str}"
                     )
 
             # 非真旋转 (improper rotation)
@@ -319,6 +320,36 @@ class SymmetryAnalyzer:
             )
 
     # ---- 辅助方法 ----
+
+    @staticmethod
+    def _fmt_vector(v: np.ndarray) -> str:
+        """格式化数值向量，消除科学记数法和数值噪声"""
+        parts = []
+        for x in v:
+            if abs(x) < 1e-10:
+                parts.append("0")
+            else:
+                rounded = round(x, 6)
+                if abs(rounded - round(x, 4)) < 1e-10:
+                    parts.append(f"{rounded:.4f}")
+                else:
+                    parts.append(f"{rounded:.6f}")
+        return "[" + ", ".join(parts) + "]"
+
+    @staticmethod
+    def _fmt_translation(t: np.ndarray) -> str:
+        """格式化平移向量为 (x, y, z) 形式"""
+        parts = []
+        for x in t:
+            if abs(x) < 1e-10:
+                parts.append("0")
+            else:
+                rounded = round(x, 6)
+                if abs(rounded - round(x, 4)) < 1e-10:
+                    parts.append(f"{rounded:.4f}")
+                else:
+                    parts.append(f"{rounded:.6f}")
+        return f"({', '.join(parts)})"
 
     @staticmethod
     def _rotation_info(R: np.ndarray) -> tuple[int, np.ndarray, float]:
