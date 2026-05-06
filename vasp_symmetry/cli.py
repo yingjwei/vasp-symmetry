@@ -261,27 +261,42 @@ def _task_magnetic(structure, symprec):
     print("  正数=自旋向上, 负数=自旋向下, 0=非磁性")
     print()
 
-    magmoms = []
     try:
-        for elem, cnt in zip(structure.elements, structure.num_atoms):
-            for i in range(1, cnt + 1):
-                label = f"{elem}{i}"
-                prompt = f"    {label:<5} [{0}]: "
-                val = input(prompt).strip()
-                if val == "":
-                    magmoms.append(0.0)
-                else:
-                    magmoms.append(float(val))
-    except (EOFError, KeyboardInterrupt):
-        print()
-        return
-    except ValueError as e:
-        print(f"  格式错误: {e}")
-        return
+        import readline
+    except ImportError:
+        pass  # Windows: readline unavailable, fine
 
-    print()
-    print(f"  磁矩: {' '.join(f'{m:>6.2f}' for m in magmoms)}")
-    print()
+    magmoms = []
+    while True:
+        magmoms = []
+        error = False
+        try:
+            for elem, cnt in zip(structure.elements, structure.num_atoms):
+                for i in range(1, cnt + 1):
+                    label = f"{elem}{i}"
+                    prompt = f"    {label:<5} [{0}]: "
+                    val = input(prompt).strip()
+                    if val == "":
+                        magmoms.append(0.0)
+                    else:
+                        magmoms.append(float(val))
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return
+        except ValueError:
+            print("  格式错误，只能输入数字。重试该原子。")
+            error = True
+
+        if error:
+            print("  (重新输入该原子的值)\n")
+            continue
+
+        print()
+        print(f"  磁矩: {' '.join(f'{m:>6.2f}' for m in magmoms)}")
+        confirm = input("  确认? (y/n, 默认 y): ").strip().lower()
+        if confirm != 'n':
+            break
+        print("  (重新输入)\n")
 
     try:
         from .magnetic_symmetry import MagneticSymmetryAnalyzer
