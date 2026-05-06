@@ -268,6 +268,56 @@ class LittleGroupAnalyzer:
         key = key_map.get(crystal_system, "triclinic")
         return HIGH_SYMM_KPOINTS.get(key, HIGH_SYMM_KPOINTS["triclinic"])
 
+    def list_standard_paths(self) -> list[tuple[str, str]]:
+        """根据晶系返回预定义的标准 k 路径
+
+        返回: [(路径名, "label1,x,y,z label2,..."字符串)]
+        """
+        spg_num = self._result.spacegroup_number
+        crystal_system = self._crystal_system(spg_num)
+
+        # 预定义的标准能带路径 (Bradley-Cracknell 约定)
+        # 格式: (名称, 路径字符串)
+        paths = {
+            "cubic": [
+                ("Γ-X-M-Γ", "G,0,0,0 X,0.5,0,0.5 M,0.5,0.5,0 G,0,0,0"),
+                ("Γ-X-M-Γ-R-X|M-R", "G,0,0,0 X,0.5,0,0.5 M,0.5,0.5,0 G,0,0,0 R,0.5,0.5,0.5 X,0.5,0,0.5 M,0.5,0.5,0 R,0.5,0.5,0.5"),
+            ],
+            "fcc": [
+                ("Γ-X-W-K-Γ-L-U-W-L-K|U-X", "G,0,0,0 X,0.5,0,0.5 W,0.5,0.25,0.75 K,0.375,0.375,0.75 G,0,0,0 L,0.5,0.5,0.5 U,0.625,0.25,0.625 W,0.5,0.25,0.75 L,0.5,0.5,0.5 K,0.375,0.375,0.75 U,0.625,0.25,0.625 X,0.5,0,0.5"),
+                ("Γ-X-W-K-Γ-L-Γ", "G,0,0,0 X,0.5,0,0.5 W,0.5,0.25,0.75 K,0.375,0.375,0.75 G,0,0,0 L,0.5,0.5,0.5 G,0,0,0"),
+            ],
+            "bcc": [
+                ("Γ-H-N-Γ-P-H|P-N", "G,0,0,0 H,0.5,-0.5,0.5 N,0,0,0.5 G,0,0,0 P,0.25,0.25,0.25 H,0.5,-0.5,0.5 P,0.25,0.25,0.25 N,0,0,0.5"),
+            ],
+            "hexagonal": [
+                ("Γ-M-K-Γ-A-L-H-A|L-K", "G,0,0,0 M,0,0.5,0 K,0.333333,0.333333,0 G,0,0,0 A,0,0,0.5 L,0,0.5,0.5 H,0.333333,0.333333,0.5 A,0,0,0.5 L,0,0.5,0.5 K,0.333333,0.333333,0"),
+            ],
+            "tetragonal": [
+                ("Γ-X-M-Γ-Z-R-A-Z|X-R-M-A", "G,0,0,0 X,0.5,0,0 M,0.5,0.5,0 G,0,0,0 Z,0,0,0.5 R,0.5,0.5,0.5 A,0.5,0,0.5 Z,0,0,0.5 X,0.5,0,0 R,0.5,0.5,0.5 M,0.5,0.5,0 A,0.5,0,0.5"),
+                ("Γ-Z|X-Γ|M-Γ", "G,0,0,0 Z,0,0,0.5 X,0.5,0,0 G,0,0,0 M,0.5,0.5,0 G,0,0,0"),
+            ],
+            "orthorhombic": [
+                ("Γ-X-S-Y-Γ-Z-U-R-T-Z|Y-T-U-X|S-R", "G,0,0,0 X,0.5,0,0 S,0,0.5,0 Y,0,0.5,0 G,0,0,0 Z,0,0,0.5 U,0.5,0.5,0 R,0.5,0.5,0.5 T,0.5,0,0.5 Z,0,0,0.5 Y,0,0.5,0 T,0.5,0,0.5 U,0.5,0.5,0 X,0.5,0,0 S,0,0.5,0 R,0.5,0.5,0.5"),
+                ("G-X|G-Y|G-Z", "G,0,0,0 X,0.5,0,0 G,0,0,0 Y,0,0.5,0 G,0,0,0 Z,0,0,0.5"),
+            ],
+            "monoclinic": [
+                ("Γ-A-C-D-Γ-Z-D-E-Z|C-E", "G,0,0,0 A,0.5,0,0 C,0,0.5,0 D,0.5,0.5,0 G,0,0,0 Z,0,0,0.5 D,0.5,0.5,0 E,0,0.5,0.5 Z,0,0,0.5 C,0,0.5,0 E,0,0.5,0.5"),
+            ],
+            "triclinic": [
+                ("Γ-only", "G,0,0,0"),
+            ],
+        }
+
+        key_map = {
+            "cubic": "cubic", "fcc": "fcc", "bcc": "bcc",
+            "hexagonal": "hexagonal", "trigonal": "hexagonal",
+            "tetragonal": "tetragonal", "orthorhombic": "orthorhombic",
+            "monoclinic": "monoclinic", "triclinic": "triclinic",
+        }
+        key = key_map.get(crystal_system, "triclinic")
+        return paths.get(key, paths["triclinic"])
+
     # ---- 辅助方法 ----
 
     def _identify_little_pointgroup(self, ops: list[SymmetryOp]) -> str:

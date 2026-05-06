@@ -291,7 +291,8 @@ class SymmetryAnalyzer:
                 t_parallel = t - np.dot(t, n_unit) * n_unit  # 面内分量
                 t_parallel_norm = np.linalg.norm(t_parallel)
 
-                if t_parallel_norm < self._TOL:
+                glide_tol = max(1e-4, self.symprec * 10)
+                if t_parallel_norm < glide_tol:
                     # 面内平移 ≈ 0 → 纯镜面（可能有原点偏移，但偏移垂直于镜面方向）
                     return SymmetryOp(
                         rotation=R, translation=t,
