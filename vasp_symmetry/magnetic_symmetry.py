@@ -9,12 +9,19 @@
 from __future__ import annotations
 
 import numpy as np
-import spglib
-if not hasattr(spglib, 'MsgCell'):
+
+try:
+    import spglib
+    from spglib import (
+        MsgCell, get_magnetic_symmetry_dataset, get_magnetic_spacegroup_type,
+    )
+except (ImportError, AttributeError) as _e:
+    import spglib
     raise ImportError(
         "spglib 版本过旧，缺少磁群 API。请升级 spglib:\n"
         "  pip install --upgrade spglib\n"
-        "  需要 spglib >= 2.3.0 (当前: " + getattr(spglib, '__version__', '未知') + ")"
+        "  需要 spglib >= 2.3.0 (当前: "
+        + (getattr(spglib, '__version__', None) or '未知') + ")"
     )
 from dataclasses import dataclass, field
 from typing import Literal
@@ -114,17 +121,17 @@ class MagneticSymmetryAnalyzer:
         pointgroup_symbol = getattr(ds, 'pointgroup', ds.get('pointgroup', ''))
 
         # 构建磁细胞
-        msg_cell = spglib.MsgCell((lat, pos, numbers, magmoms.tolist()))
+        msg_cell = MsgCell((lat, pos, numbers, magmoms.tolist()))
 
         # 获取磁群数据集
-        mds = spglib.get_magnetic_symmetry_dataset(msg_cell, symprec=self.symprec)
+        mds = get_magnetic_symmetry_dataset(msg_cell, symprec=self.symprec)
         if mds is None:
             raise RuntimeError("spglib 磁群分析失败")
 
         uni_number = mds.uni_number
 
         # 获取 MSG 类型信息
-        msg_type_info = spglib.get_magnetic_spacegroup_type(uni_number)
+        msg_type_info = get_magnetic_spacegroup_type(uni_number)
         if msg_type_info is not None:
             info = {
                 'uni_number': msg_type_info.uni_number,
