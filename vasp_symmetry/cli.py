@@ -258,25 +258,31 @@ def _task_magnetic(structure, symprec):
     print(f"  总原子数: {n_atoms}")
     print(f"  元素分布: {dict(zip(structure.elements, structure.num_atoms))}")
     print()
-    print("  请输入每个原子的磁矩 (共线标量, 空格/逗号分隔)")
+    print("  逐原子输入磁矩, 回车=0")
     print("  正数=自旋向上, 负数=自旋向下, 0=非磁性")
-    print(f"  例如: {' '.join(['0'] * n_atoms)}  全部非磁")
     print()
 
+    magmoms = []
     try:
-        mag_str = input(f"  磁矩 ({n_atoms} 个值): ").strip()
-        if not mag_str:
-            print("  已取消。")
-            return
-        magmoms = [float(x) for x in mag_str.replace(",", " ").split() if x.strip()]
-        if len(magmoms) != n_atoms:
-            print(f"  错误: 需要 {n_atoms} 个值, 输入了 {len(magmoms)} 个")
-            return
+        for elem, cnt in zip(structure.elements, structure.num_atoms):
+            for i in range(1, cnt + 1):
+                label = f"{elem}{i}"
+                prompt = f"    {label:<5} [{0}]: "
+                val = input(prompt).strip()
+                if val == "":
+                    magmoms.append(0.0)
+                else:
+                    magmoms.append(float(val))
     except (EOFError, KeyboardInterrupt):
+        print()
         return
     except ValueError as e:
         print(f"  格式错误: {e}")
         return
+
+    print()
+    print(f"  磁矩: {' '.join(f'{m:>6.2f}' for m in magmoms)}")
+    print()
 
     try:
         mag_analyzer = MagneticSymmetryAnalyzer(structure, symprec=symprec)
